@@ -515,6 +515,7 @@ export default function RockStars() {
   const [rivalState, setRivalState] = useState("idle");
   const [playerState, setPlayerState] = useState("idle");
   const [comboCount, setComboCount] = useState(0);
+  const [countdown, setCountdown] = useState(0);
   const audioRef = useRef(null);
   const shredIntervalRef = useRef(null);
   const patternTimeoutRef = useRef(null);
@@ -558,24 +559,34 @@ export default function RockStars() {
     setShowingPattern(true);
     setPatternShowIndex(-1);
     setGameState("respond");
-    setRivalState("singing");
+    setRivalState("idle");
     setPlayerState("idle");
 
-    let idx = 0;
-    const showNext = () => {
-      if (idx < pattern.length) {
-        setPatternShowIndex(idx);
-        audioRef.current?.playRivalNote(pattern[idx]);
-        idx++;
-        patternTimeoutRef.current = setTimeout(showNext, 550);
-      } else {
-        setPatternShowIndex(-1);
-        setShowingPattern(false);
-        setRivalState("idle");
-        showFeedback("YOUR TURN!", 10);
-      }
-    };
-    patternTimeoutRef.current = setTimeout(showNext, 700);
+    // Countdown 3, 2, 1 before rival plays
+    setCountdown(3);
+    setTimeout(() => setCountdown(2), 700);
+    setTimeout(() => setCountdown(1), 1400);
+    setTimeout(() => {
+      setCountdown(0);
+      setRivalState("singing");
+
+      // Now show the pattern
+      let idx = 0;
+      const showNext = () => {
+        if (idx < pattern.length) {
+          setPatternShowIndex(idx);
+          audioRef.current?.playRivalNote(pattern[idx]);
+          idx++;
+          patternTimeoutRef.current = setTimeout(showNext, 550);
+        } else {
+          setPatternShowIndex(-1);
+          setShowingPattern(false);
+          setRivalState("idle");
+          showFeedback("YOUR TURN!", 10);
+        }
+      };
+      patternTimeoutRef.current = setTimeout(showNext, 300);
+    }, 2100);
   }, []);
 
   const startShredPhase = useCallback(() => {
@@ -699,11 +710,12 @@ export default function RockStars() {
 
         setInputFlash(btnIdx);
         setTimeout(() => setInputFlash(-1), 150);
-        audioRef.current?.playPlayerNote(activePlayer, btnIdx);
         setPlayerState("singing");
 
         setPatternIndex((idx) => {
           if (btnIdx === currentPattern[idx]) {
+            // Correct — play the matching rival note so you're recreating the melody
+            audioRef.current?.playRivalNote(currentPattern[idx]);
             setComboCount((c) => c + 1);
             const newInput = [...playerInput, btnIdx];
             setPlayerInput(newInput);
@@ -838,8 +850,18 @@ export default function RockStars() {
             <rect x="160" y="65" width="250" height="26" rx="4" fill={gameState === "respond" ? "#331122" : "#112233"} />
             <text x="285" y="83" textAnchor="middle" fill={gameState === "respond" ? COLORS.neon1 : COLORS.neon2}
               fontSize="12" fontWeight="bold" fontFamily="monospace">
-              {gameState === "respond" ? (showingPattern ? "♪ LISTEN... ♪" : "♪ REPEAT THE PATTERN ♪") : "⚡ SHRED IT! TAP FAST! ⚡"}
+              {gameState === "respond" ? (countdown > 0 ? "GET READY..." : showingPattern ? "♪ LISTEN... ♪" : "♪ REPEAT THE PATTERN ♪") : "⚡ SHRED IT! TAP FAST! ⚡"}
             </text>
+
+            {/* Countdown overlay */}
+            {countdown > 0 && (
+              <g>
+                <rect x="235" y="130" width="100" height="80" rx="10" fill="#000000" opacity="0.7" />
+                <text x="285" y="185" textAnchor="middle" fill={COLORS.neon3} fontSize="48" fontWeight="900" fontFamily="monospace">
+                  {countdown}
+                </text>
+              </g>
+            )}
 
             {/* Pattern dots */}
             {gameState === "respond" && (
